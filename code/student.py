@@ -6,6 +6,7 @@ import numpy as np
 from numpy import pi, exp, sqrt
 from skimage import io, img_as_ubyte, img_as_float32
 from skimage.transform import rescale
+import math
 
 def my_imfilter(image, filter):
   """
@@ -22,12 +23,27 @@ def my_imfilter(image, filter):
 #####################################################################################################
 #                                            Your Code                                              #
 #####################################################################################################
-  filtered_image = None
-  assert filtered_image != None
+  image_height, image_width = image.shape[:2]
+  filter_height, filter_width = filter.shape
+  num_channels = 1 if image.ndim == 2 else image.shape[2]
+
+  # Calculate padding amounts
+  pad_height = filter_height // 2
+  pad_width = filter_width // 2
+  padded_image = np.pad(image, ((pad_height, pad_height), (pad_width, pad_width), (0, 0) if num_channels > 1 else (0, 0)), mode='reflect')
+
+  # filter process: convolution
+  filtered_image = np.zeros_like(image)
+  flipped_filter = np.flip(filter, axis=(0, 1))
+  for c in range(num_channels):
+      for i in range(image_height):
+          for j in range(image_width):
+              image_patch = padded_image[i:i+filter_height, j:j+filter_width, c] if num_channels > 1 else padded_image[i:i+filter_height, j:j+filter_width]
+              
+              filtered_image[i, j, c] = np.sum(image_patch * flipped_filter) if num_channels > 1 else np.sum(image_patch * flipped_filter)
 #####################################################################################################
 #                                               End                                                 #
 #####################################################################################################
-  
   return filtered_image
 
 
@@ -52,7 +68,7 @@ def gen_hybrid_image(image1, image2, cutoff_frequency):
   # (1) Remove the high frequencies from image1 by blurring it. The amount of
   #     blur that works best will vary with different image pairs
   # generate a 1x(2k+1) gaussian kernel with mean=0 and sigma = s, see https://stackoverflow.com/questions/17190649/how-to-obtain-a-gaussian-filter-in-python
-  s, k = cutoff_frequency, cutoff_frequency*2
+  s, k = cutoff_frequency, int(cutoff_frequency*2)
   probs = np.asarray([exp(-z*z/(2*s*s))/sqrt(2*pi*s*s) for z in range(-k,k+1)], dtype=np.float32)
   kernel = np.outer(probs, probs)
   
@@ -60,18 +76,21 @@ def gen_hybrid_image(image1, image2, cutoff_frequency):
   #                                            Your Code                                              #
   #####################################################################################################
   # Your code here:
-  low_frequencies = None # Replace with your implementation
+  # low_frequencies = None # Replace with your implementation
+  low_frequencies = my_imfilter(image1, kernel)
 
   # (2) Remove the low frequencies from image2. The easiest way to do this is to
   #     subtract a blurred version of image2 from the original version of image2.
   #     This will give you an image centered at zero with negative values.
   # Your code here #
-  high_frequencies = None # Replace with your implementation
-
+  # high_frequencies = None # Replace with your implementation
+  image2_low_frequencies = my_imfilter(image2, kernel)
+  high_frequencies = image2 - image2_low_frequencies
 
   # (3) Combine the high frequencies and low frequencies
   # Your code here #
-  hybrid_image = None
+  # hybrid_image = None
+  hybrid_image = low_frequencies + high_frequencies
 
   # (4) At this point, you need to be aware that values larger than 1.0
   # or less than 0.0 may cause issues in the functions in Python for saving
@@ -79,9 +98,10 @@ def gen_hybrid_image(image1, image2, cutoff_frequency):
   # gen_hybrid_image().
   # One option is to clip (also called clamp) all values below 0.0 to 0.0, 
   # and all values larger than 1.0 to 1.0.
-  #####################################################################################################
-  #                                               End                                                 #
-  #####################################################################################################
+  hybrid_image = np.clip(hybrid_image, 0, 1)
+#####################################################################################################
+#                                               End                                                 #
+#####################################################################################################
 
   return low_frequencies, high_frequencies, hybrid_image
 

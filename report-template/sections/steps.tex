@@ -1,54 +1,12 @@
-\subsection{实现Tiny+KNN方法}
-	\begin{enumerate}
-		\item 实现student.py/get_tiny_images(image_paths)函数: 
-		根据Tiny Images和KNN的实验原理，为输入的图像路径列表生成 Tiny Images 特征。
-		输出一个 n x d的 NumPy数组，
-		其中 n是图像数量，
-		d是 Tiny Images 特征向量的长度（例如 16*16=256）；
+\begin{enumerate}
+    \item \textbf{实现 \texttt{my\_imfilter} 函数：}
+    实现图像滤波的核心函数 \texttt{my\_imfilter}。该函数接收一个图像和一个滤波器作为输入，并返回滤波后的图像。实现时需考虑以下要点：
 
-		\item 完善 `nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)` 函数
-		使用 KNN 分类器对测试图像进行分类。
-		为输入的图像路径列表生成 Tiny Images 特征。
-		输出一个 n x d的 NumPy数组，
-		其中 n是图像数量，
-		d是 Tiny Images 特征向量的长度（例如 16*16=256）；
-		输出一个m x 1的 NumPy 数组，
-		其中m是测试图像数量，每个元素是对应的预测类别标签。
+    \item \textbf{实现 \texttt{gen\_hybrid\_image} 函数：}
+    实现生成混合图像的函数 \texttt{gen\_hybrid\_image}。该函数接收两张输入图像和一个截止频率作为输入，并返回低频图像、高频图像和混合图像。
 
-	\end{enumerate}
-
-
-\subsection{实现 Bag of Words (SIFT) + SVM 方法}
-	\begin{enumerate}
-		\item 实现student.py/build_vocabulary(image_paths, vocab_size)函数
-		根据Bag of Words (SIFT) + SVM的实验原理，
-		从训练图像中提取 HOG 特征并构建视觉词汇，
-		输出一个vocab_size x (z*z*9)的 NumPy 数组，
-		代表聚类中心（即视觉词汇）。
-		通常会将这个词汇保存到文件vocab.npy。
-
-		\item 实现 get_bags_of_words(image_paths)函数，
-		为输入的图像路径列表生成 Bag of Words 直方图特征，
-		加载已构建的视觉词汇 (vocab.npy)，
-		输出一个n x vocab_size的 NumPy 数组，
-		其中n是图像数量，vocab_size是词汇大小，
-		每个元素是对应的 Bag of Words 直方图特征向量。
-
-		\item 完善 svm_classify(train_image_feats, train_labels, test_image_feats)函数；
-		使用 SVM 分类器对测试图像进行分类
-		输出一个m x 1的 NumPy 数组，
-		其中m是测试图像数量，
-		每个元素是对应的预测类别标签。
-	\end{enumerate}
-
-
-\subsection{实现 DNN 网络}
-在proj4.ipynb重新开一个单元格，用于实现DNN
-
-\subsection{比较分析}
-	\begin{enumerate}
-		\item 在完成以上实现后，运行proj4.ipynb所有单元格。
-		\item 计算 Tiny+KNN、BoW+SVM 和 DNN在测试集上的分类精度。
-		\item 比较这三种方法的精度,分析不同特征表示和不同分类器对场景分类性能的影响。
-	\end{enumerate}
-    
+    \item \textbf{}
+    进入proj1.ipynb笔记本，
+    设置\texttt{cutoff\_frequency} 值为7，
+    选择自行车观察滤波情况，然后选择鱼和鱼雷图片生成低频、高频和混合图像。
+\end{enumerate}

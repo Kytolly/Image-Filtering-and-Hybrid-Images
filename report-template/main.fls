@@ -1,8 +1,8 @@
-PWD d:/Desktop/myfile/draft/proj4：Scene Recognition with Bag of Words (no data)/report-template
+PWD d:/Desktop/myfile/draft/Image-Filtering-and-Hybrid-Images/report-template
 INPUT d:/LaTeX/texlive2023/texlive/2023/texmf.cnf
 INPUT d:/LaTeX/texlive2023/texlive/2023/texmf-dist/web2c/texmf.cnf
 INPUT d:/LaTeX/texlive2023/texlive/2023/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT d:/Desktop/myfile/draft/proj4：Scene Recognition with Bag of Words (no data)/report-template/main.tex
+INPUT d:/Desktop/myfile/draft/Image-Filtering-and-Hybrid-Images/report-template/main.tex
 OUTPUT main.log
 INPUT d:/LaTeX/texlive2023/texlive/2023/texmf-dist/tex/latex/ctex/ctexart.cls
 INPUT d:/LaTeX/texlive2023/texlive/2023/texmf-dist/tex/latex/ctex/ctexart.cls
