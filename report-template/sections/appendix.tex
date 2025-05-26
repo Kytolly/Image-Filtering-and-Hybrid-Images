@@ -1,900 +1,134 @@
-\section{代码示例}
+\section{核心代码}
 
-示例代码如代码 \ref{lst:code-example} 所示。
+如代码 1 所示。
 
-\begin{lstlisting}[caption={总控程序main.rs}, label={l:code-example}, captionpos=t, language=rust]
-  pub mod prep;
-  pub mod lex;
-  pub mod env;
-  pub mod parse;
-  
-  use prep::Preprocessor;
-  use lex::Lexer;
-  use parse::Parser;
-  use env::Env;
-  
-  fn main() {
-      let path = "test/6";
-      let mode = "file";
-      let preprocessor = Preprocessor::new(path);
-      println!("---------------------------------");
-  
-      let mut lexer = Lexer::new(preprocessor, path, mode);
-      lexer.analyse();
-      lexer.save();
-      println!("---------------------------------");
-  
-      let mut env = Env::new();
-      let s = lexer.get_stream();
+\begin{lstlisting}[caption={student.py}, label={lst:code-example}, captionpos=t, language=python]
+    # Project Image Filtering and Hybrid Images Stencil Code
+    # Based on previous and current work
+    # by James Hays for CSCI 1430 @ Brown and
+    # CS 4495/6476 @ Georgia Tech
+    import numpy as np
+    from numpy import pi, exp, sqrt
+    from skimage import io, img_as_ubyte, img_as_float32
+    from skimage.transform import rescale
+    import math
+    
+    def my_imfilter(image, filter):
+      """
+      Your function should meet the requirements laid out on the project webpage.
+      Apply a filter to an image. Return the filtered image.
+      Inputs:
+      - image -> numpy nd-array of dim (m, n, c)
+      - filter -> numpy nd-array of odd dim (k, l)
+      Returns
+      - filtered_image -> numpy nd-array of dim (m, n, c)
+      Errors if:
+      - filter has any even dimension -> raise an Exception with a suitable error message.
+      """
+
+      image_height, image_width = image.shape[:2]
+      filter_height, filter_width = filter.shape
+      num_channels = 1 if image.ndim == 2 else image.shape[2]
+    
+      # Calculate padding amounts
+      pad_height = filter_height // 2
+      pad_width = filter_width // 2
+      padded_image = np.pad(image, ((pad_height, pad_height), (pad_width, pad_width), (0, 0) if num_channels > 1 else (0, 0)), mode='reflect')
+    
+      # filter process: convolution
+      filtered_image = np.zeros_like(image)
+      flipped_filter = np.flip(filter, axis=(0, 1))
+      for c in range(num_channels):
+          for i in range(image_height):
+              for j in range(image_width):
+                  image_patch = padded_image[i:i+filter_height, j:j+filter_width, c] if num_channels > 1 else padded_image[i:i+filter_height, j:j+filter_width]
+                  
+                  filtered_image[i, j, c] = np.sum(image_patch * flipped_filter) if num_channels > 1 else np.sum(image_patch * flipped_filter)
+      return filtered_image
+    
+    
+    def gen_hybrid_image(image1, image2, cutoff_frequency):
+      """
+       Inputs:
+       - image1 -> The image from which to take the low frequencies.
+       - image2 -> The image from which to take the high frequencies.
+       - cutoff_frequency -> The standard deviation, in pixels, of the Gaussian
+                             blur that will remove high frequencies.
+    
+       Task:
+       - Use my_imfilter to create 'low_frequencies' and 'high_frequencies'.
+       - Combine them to create 'hybrid_image'.
+      """
+    
+      assert image1.shape[0] == image2.shape[0]
+      assert image1.shape[1] == image2.shape[1]
+      assert image1.shape[2] == image2.shape[2]
+    
+      # Steps:
+      # (1) Remove the high frequencies from image1 by blurring it. The amount of
+      #     blur that works best will vary with different image pairs
+      # generate a 1x(2k+1) gaussian kernel with mean=0 and sigma = s, see https://stackoverflow.com/questions/17190649/how-to-obtain-a-gaussian-filter-in-python
+      s, k = cutoff_frequency, int(cutoff_frequency*2)
+      probs = np.asarray([exp(-z*z/(2*s*s))/sqrt(2*pi*s*s) for z in range(-k,k+1)], dtype=np.float32)
+      kernel = np.outer(probs, probs)
       
-      let mut parser = Parser::new(s, mode, path.to_string());
-      match parser.analyse(&mut env) {
-          Ok(()) => println!("compilered!"),
-          _ => println!("syntax error!")
-      }
-  }
-\end{lstlisting}
+      # Your code here:
+      # low_frequencies = None # Replace with your implementation
+      low_frequencies = my_imfilter(image1, kernel)
+    
+      # (2) Remove the low frequencies from image2. The easiest way to do this is to
+      #     subtract a blurred version of image2 from the original version of image2.
+      #     This will give you an image centered at zero with negative values.
+      # Your code here #
+      # high_frequencies = None # Replace with your implementation
+      image2_low_frequencies = my_imfilter(image2, kernel)
+      high_frequencies = image2 - image2_low_frequencies
+    
+      # (3) Combine the high frequencies and low frequencies
+      # Your code here #
+      # hybrid_image = None
+      hybrid_image = low_frequencies + high_frequencies
+    
+      # (4) At this point, you need to be aware that values larger than 1.0
+      # or less than 0.0 may cause issues in the functions in Python for saving
+      # images to disk. These are called in proj1_part2 after the call to 
+      # gen_hybrid_image().
+      # One option is to clip (also called clamp) all values below 0.0 to 0.0, 
+      # and all values larger than 1.0 to 1.0.
+      hybrid_image = np.clip(hybrid_image, 0, 1)
 
-\begin{lstlisting}[caption={预处理器prep.rs}, label={2:code-example}, captionpos=t, language=rust]
-  use std::fs::File;
-  use std::io::{Read};
-  
-  pub struct Preprocessor {
-      pub path: String, // 源程序名
-      pub content: String, // 源程序字符流
-  }
-  
-  impl Preprocessor {
-      pub fn new(name: &str) -> Self{
-          let mut p = Preprocessor{
-              path: name.to_string() + ".pas",
-              content: String::new(),
-          };
-          let mut input = File::open(&p.path).unwrap();
-          input.read_to_string(&mut p.content).unwrap();
-          println!("{}", p.content);
-          p
-      }
-  }
-  
-\end{lstlisting}
-
-\begin{lstlisting}[caption={词法分析器lex.rs}, label={3:code-example}, captionpos=t, language=rust]
-
-\end{lstlisting}
-
-\begin{lstlisting}[caption={语法分析器parse.rs}, label={4:code-example}, captionpos=t, language=rust]
-  use crate::env::{Token, ErrorMessage, Env};
-  use std::fs;
-  use std::io::{Write};
-  
-  pub struct Parser {
-      // LL1语法分析器,基于递归下降办法
-      pub stream: Vec<Token>, // 输入的token流
-      pub pos: usize, //当前token所在位置
-      pub line: usize, // 当前token所在行数
-      mode: &'static str, // 错误的打印模式
-      name: String,
-  }
-  
-  impl Parser {
-      pub fn new(s: Vec<Token>, mode: &'static str, name: String) -> Self {
-          let p = Parser {
-              stream: s,
-              pos: 0,
-              line: 1,
-              mode: mode,
-              name: name,
-          };
-          p
-      }
-      pub fn analyse(&mut self, env: &mut Env) -> Result<(), ErrorMessage> {
-          self.parse_node_program(env)
-      }
-  
-      fn debug(&self) {
-          println!("-------------------------");
-          println!("debug point");
-          println!("pos:{:?}", self.pos);
-          println!("line:{:?}", self.line);
-          println!("token:{:?}", self.current_token());
-      }
-      fn current_token(&self) -> Token {
-          if self.pos >= self.stream.len() {
-              Token::Eof
-          } else {
-              self.stream[self.pos].clone()
-          }
-      }
-      fn advance(&mut self) {
-          if self.pos >= self.stream.len() {
-              return;
-          }
-          
-          self.pos += 1;
-          let mut tk = self.current_token();
-          
-          // 处理换行符
-          while tk == Token::Eol && self.pos < self.stream.len() {
-              self.line += 1;
-              self.pos += 1;
-              tk = self.current_token();
-          }
-      }
-      fn match_token(&self, tk: Token) -> bool {
-          self.current_token() == tk
-      }
-      fn error(&self, errmsg: ErrorMessage) {
-          match self.mode {
-              "console" => self.console_error(errmsg),
-              "file" => self.file_error(&errmsg),
-              _ => println!("invalid mode!"),
-          };
-      }
-      fn file_error(&self, errmsg:&ErrorMessage) {
-          let path = format!("{}.err", self.name);
-          let mut file = fs::OpenOptions::new()
-              .write(true)
-              .append(true)
-              .create(true)
-              .open(&path)
-              .expect("Failed to create error file");
-          let err_msg = match errmsg {
-              ErrorMessage::SyntaxError => format!("LINE{:?}: unknown token!\n", self.line),
-              ErrorMessage::WrongReserveYouMeanFunction => format!("LINE{:?}: wrong reserve: you mean 'function'?\n", self.line),
-              ErrorMessage::WrongReserveYouMeanRead => format!("LINE{:?}: wrong reserve: you mean 'read'?\n", self.line),
-              ErrorMessage::WrongReserveYouMeanWrite => format!("LINE{:?}: wrong reserve: you mean 'write'?\n", self.line),
-              ErrorMessage::WrongAssignToken => format!("LINE{:?}: wrong assign operator: you mean ':='?\n", self.line),
-              ErrorMessage::InvalidTypeExpectedInterger => format!("LINE{:?}: invalid type: expected INTEGER\n", self.line),
-              ErrorMessage::InvalidNumber => format!("LINE{:?}: Invalid number!\n", self.line),
-              ErrorMessage::OverflowIdentifier => format!("LINE{:?}: Identifier length overflow!\n", self.line),
-              ErrorMessage::FailMatchingSemicolon => format!("LINE{:?}: Semicolon matching failed!\n", self.line),
-              ErrorMessage::MissingSemicolon => format!("LINE{:?}: missing a ';' at the end of the statement\n", self.line),
-              ErrorMessage::MissingLeftParenthesis => format!("LINE{:?}: expected '(' following the function statement\n", self.line),
-              ErrorMessage::MissingRightParenthesis => format!("LINE{:?}: expected ')' to cover the block\n", self.line),
-              ErrorMessage::MissingIf => format!("LINE{:?}: expected 'if' \n", self.line),
-              ErrorMessage::MissingThen => format!("LINE{:?}: expected 'then' \n", self.line),
-              ErrorMessage::MissingElse => format!("LINE{:?}: expected 'else' \n", self.line),
-              ErrorMessage::MissingMultiply => format!("LINE{:?}: expected '*' \n", self.line),
-              ErrorMessage::SyntaxErrorExpectedABlock => format!("LINE{:?}: syntax error, expected a block\n", self.line),
-              ErrorMessage::FailMatching => format!("LINE{:?}: Symbol matching error!\n", self.line),
-              ErrorMessage::MissingEnd => format!("LINE{:?}: missing END: this block is not covered\n", self.line),
-              ErrorMessage::ExpectedIdentifier => format!("LINE{:?}: Expected identifier in this field\n", self.line),
-              ErrorMessage::FoundRepeatDeclarationInThisField => format!("LINE{:?}: this symbol's declaration repeated in this field\n", self.line),
-          };
-          file.write_all(err_msg.as_bytes()).expect("Failed to write error file");
-      }
-      fn console_error(&self, errmsg: ErrorMessage) {
-          // 抛出错误
-          // 这里还是简化实现
-          // 应该扔到标准错误流中，写入文件
-          // 不能和标准输出流混合
-          // self.debug();
-          match errmsg {
-              ErrorMessage::SyntaxError => {
-                  println!("LINE{:?}: syntax error, exited", self.line);
-              }
-              ErrorMessage::WrongReserveYouMeanFunction => {
-                  println!("LINE{:?}: wrong reserve: you mean 'function'?", self.line);
-              }
-              ErrorMessage::WrongReserveYouMeanRead => {
-                  println!("LINE{:?}: wrong reserve: you mean 'read'?", self.line);
-              }
-              ErrorMessage::WrongReserveYouMeanWrite => {
-                  println!("LINE{:?}: wrong reserve: you mean 'write'?", self.line);
-              }
-              ErrorMessage::WrongAssignToken => {
-                  println!("LINE{:?}: wrong assign operator: you mean ':='?", self.line);
-              }
-              ErrorMessage::InvalidTypeExpectedInterger => {
-                  println!("LINE{:?}: invalid type here, expected integer", self.line);
-              }
-              ErrorMessage::InvalidNumber => {
-                  println!("LINE{:?}: invalid number", self.line);
-              }
-              ErrorMessage::OverflowIdentifier => {
-                  println!("LINE{:?}: the length of identifier overflows", self.line);
-              }
-              ErrorMessage::FailMatchingSemicolon => {
-                  println!("LINE{:?}: fail in matching semicolon", self.line);
-              }
-              ErrorMessage::MissingSemicolon => {
-                  println!("LINE{:?}: missing a ';' at the end of the statement", self.line);
-              }
-              ErrorMessage::MissingLeftParenthesis => {
-                  println!("LINE{:?}: missing a '(' following the function statement", self.line);
-              }
-              ErrorMessage::MissingRightParenthesis => {
-                  println!("LINE{:?}: missing a ')' to cover the block", self.line);
-              }
-              ErrorMessage::MissingMultiply => {
-                  println!("LINE{:?}: expected '*' ", self.line);
-              }
-              ErrorMessage::MissingIf => {
-                  println!("LINE{:?}: expected 'if' ", self.line);
-              }
-              ErrorMessage::MissingThen => {
-                  println!("LINE{:?}: expected 'then' ", self.line);
-              }
-              ErrorMessage::MissingElse => {
-                  println!("LINE{:?}: expected 'else' ", self.line);
-              }
-              ErrorMessage::SyntaxErrorExpectedABlock => {
-                  println!("LINE{:?}: syntax error, expected a block", self.line);
-              }
-              ErrorMessage::FailMatching => {
-                  println!("LINE{:?}: 符号匹配错误!", self.line);
-              }
-              ErrorMessage::MissingEnd => {
-                  println!("LINE{:?}: missing END: this block is not covered", self.line);
-              }
-              ErrorMessage::ExpectedIdentifier => {
-                  println!("LINE{:?}: expected indentifier", self.line);
-              }
-              ErrorMessage::FoundRepeatDeclarationInThisField => {
-                  println!("LINE{:?}: the declaration of this indentifier repeated in this scope", self.line);
-              }
-          }
-          println!("-------------------------");
-      }
-      fn skip_bad_line(&mut self) {
-          let mut tk = self.current_token();
-          while tk != Token::Eol && tk != Token::Eof {
-              self.advance();
-              tk = self.current_token();
-          }
-      }
-      fn handle_error(&mut self, errmsg: ErrorMessage) -> Result<(), ErrorMessage>{
-          let res = Err(errmsg.clone());
-          self.debug();
-          self.error(errmsg);
-          self.skip_bad_line();
-          res
-      }
-      
-      fn parse_node_program(&mut self, env: &mut Env) -> Result<(), ErrorMessage>{
-          // <程序> → <分程序>
-          self.parse_node_block(env)
-      }
-      fn parse_node_block(&mut self, env: &mut Env) -> Result<(), ErrorMessage>{
-          // <分程序> → begin <说明语句表><执行语句表> end
-          match self.match_token(Token::Begin) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::SyntaxErrorExpectedABlock)
-          }
-          env.enter_scope();
-          match self.parse_node_declaration_statement_table(env) {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          // match self.match_token(Token::Semicolon) {
-          //     true => self.advance(),
-          //     false => return self.handle_error(ErrorMessage::MissingSemicolon),
-          // }
-          match self.parse_node_execution_statement_table() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::End) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingEnd)
-          }
-          env.exit_scope();
-          Ok(())
-      }
-      fn parse_node_declaration_statement_table(&mut self, env:&mut Env) -> Result<(), ErrorMessage>{
-          // <说明语句表> → {<说明语句> ;}
-          loop {
-              if !self.match_token(Token::Integer) {
-                  // 检查FOLLOW 集
-                  match self.current_token() {
-                      Token::Read | Token::Write | Token::If | Token::Identifier(_) | Token::End | Token::Eof => {
-                          return Ok(());
-                      },
-                      _ => return self.handle_error(ErrorMessage::SyntaxError),
-                  }
-              }
-              
-              // 匹配说明语句
-              match self.parse_node_declaration_statement(env) {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              
-              // 匹配分号
-              match self.match_token(Token::Semicolon) {
-                  true => self.advance(),
-                  false => return self.handle_error(ErrorMessage::MissingSemicolon),
-              }
-          }
-      }
-      fn parse_node_declaration_statement(&mut self, env: &mut Env) -> Result<(), ErrorMessage>{
-          // <说明语句> → integer <说明语句'>
-          match self.match_token(Token::Integer) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::InvalidTypeExpectedInterger)
-          }
-          self.parse_node_declaration_statement_prime(env)
-      }
-      fn parse_node_declaration_statement_prime(&mut self, env: &mut Env) -> Result<(), ErrorMessage>{
-          // <说明语句'> → <变量> | function <标识符>（<参数>）<函数体> ;
-          if self.match_token(Token::Function) {
-              // 函数说明分支
-              self.advance();
-  
-              // 获取函数标识符名称
-              let pname = match self.parse_node_identifier() {
-                  Ok(pname) => pname,
-                  Err(e) => return self.handle_error(e),
-              };
-              // 检查是否重复声明，若没有则添加声明
-              if env.check_repeat(pname.clone()){
-                  return self.handle_error(ErrorMessage::FoundRepeatDeclarationInThisField);
-              } else{
-                  env.add_procedure(pname.clone());
-              }
-  
-              match self.match_token(Token::LeftParenthesis) {
-                  true => self.advance(),
-                  false => return self.handle_error(ErrorMessage::MissingLeftParenthesis)
-              }
-              match self.parse_node_parameter() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              match self.match_token(Token::RightParenthesis) {
-                  true => self.advance(),
-                  false => return self.handle_error(ErrorMessage::MissingRightParenthesis)
-              }
-              match self.match_token(Token::Semicolon) {
-                  true => {
-                      self.advance();
-                      match self.parse_node_function_body(env) {
-                          Ok(_) => Ok(()),
-                          Err(e) => return self.handle_error(e),
-                      }
-                  },
-                  false => self.handle_error(ErrorMessage::MissingSemicolon),
-              }
-          } else {
-              // 变量说明分支
-              // 获取变量名字
-              let vname = match self.parse_node_variable() {
-                  Ok(vname) => vname,
-                  Err(e) => return self.handle_error(e),
-              };
-              // 检查是否重复声明，若没有则添加声明
-              if env.check_repeat(vname.clone()){
-                  return self.handle_error(ErrorMessage::FoundRepeatDeclarationInThisField);
-              } else{
-                  env.add_variable(vname.clone(), "F".to_string(),0);
-                  Ok(())
-              }
-          }
-      }
-      fn parse_node_function_body(&mut self, env:&mut Env) -> Result<(), ErrorMessage>{
-          // <函数体> → begin <说明语句表><执行语句表> end
-          match self.match_token(Token::Begin) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::SyntaxErrorExpectedABlock)
-          }
-          match self.parse_node_declaration_statement_table(env) {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          // match self.match_token(Token::Semicolon) {
-          //     true => self.advance(),
-          //     false => return self.handle_error(ErrorMessage::MissingSemicolon)
-          // }
-          match self.parse_node_execution_statement_table() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::End) {
-              true => {
-                  self.advance();
-                  Ok(())
-              },
-              false => return self.handle_error(ErrorMessage::MissingEnd)
-          }
-      }
-      fn parse_node_parameter(&mut self) -> Result<(), ErrorMessage>{
-          // <参数> → <算术表达式>
-          match self.parse_node_expression() {
-              Ok(_) => Ok(()),
-              Err(e) => return self.handle_error(e),
-          }
-      }
-      fn parse_node_execution_statement_table(&mut self) -> Result<(), ErrorMessage>{
-          // <执行语句表> → {<执行语句> ;}
-          // FOLLOW(<执行语句表>) 包含 'end' 和 '$'
-          loop {
-              // 检查当前token是否可以开始一个执行语句
-              match self.current_token() {
-                  Token::Read | Token::Write | Token::If | Token::Identifier(_) => {
-                      // 可以开始执行语句，继续解析
-                  },
-                  Token::End | Token::Eof => {
-                      // 否则，检查是否在 FOLLOW 集里 (end 或 EOF)
-                      // 如果在，说明执行语句表结束
-                      return Ok(());
-                  },
-                  _ => return self.handle_error(ErrorMessage::SyntaxError),
-              }
-              
-              // 解析一个执行语句
-              match self.parse_node_execution_statement() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              
-              // 期望匹配分号
-              match self.match_token(Token::Semicolon) {
-                  true => self.advance(),
-                  false => return self.handle_error(ErrorMessage::MissingSemicolon),
-              }
-          }
-      }
-      fn parse_node_execution_statement(&mut self) -> Result<(), ErrorMessage>{
-          // <执行语句> → <读语句>│<写语句>│<赋值语句>│<条件语句>
-          match self.current_token() {
-              Token::Read => self.parse_node_read_statement(),
-              Token::Write => self.parse_node_write_statement(),
-              Token::If => self.parse_node_conditional_statement(),
-              Token::Identifier(_) => self.parse_node_assignment_statement(),
-              _ => self.handle_error(ErrorMessage::SyntaxError)
-          }
-      }
-      fn parse_node_assignment_statement(&mut self) -> Result<(), ErrorMessage>{
-          // <赋值语句> → <变量> := <算术表达式>
-          match self.parse_node_variable() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::Assign) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::WrongAssignToken)
-          }
-          match self.parse_node_expression() {
-              Ok(_) => Ok(()),
-              Err(e) => return self.handle_error(e),
-          }
-      }
-      fn parse_node_conditional_statement(&mut self) -> Result<(), ErrorMessage>{
-          // <条件语句> → if<条件表达式>then<执行语句>else <执行语句>
-          match self.match_token(Token::If) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingIf)
-          }
-          match self.parse_node_condition() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::Then) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingThen)
-          }
-          match self.parse_node_execution_statement() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::Else) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingElse)
-          }
-          match self.parse_node_execution_statement() {
-              Ok(_) => Ok(()),
-              Err(e) => return self.handle_error(e),
-          }
-      }
-      fn parse_node_read_statement(&mut self) -> Result<(), ErrorMessage>{
-          // <读语句> → read(<变量>)
-          match self.match_token(Token::Read) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::WrongReserveYouMeanRead)
-          }
-          match self.match_token(Token::LeftParenthesis) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingLeftParenthesis)
-          }
-          match self.parse_node_variable() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::RightParenthesis) {
-              true => {
-                  self.advance();
-                  Ok(())
-              },
-              false => return self.handle_error(ErrorMessage::MissingRightParenthesis)
-          }
-      }
-      fn parse_node_write_statement(&mut self) -> Result<(), ErrorMessage>{
-          // <写语句> → write(<变量>)
-          match self.match_token(Token::Write) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::WrongReserveYouMeanWrite)
-          }
-          match self.match_token(Token::LeftParenthesis) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingLeftParenthesis)
-          }
-          match self.parse_node_variable() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::RightParenthesis) {
-              true => {
-                  self.advance();
-                  Ok(())
-              },
-              false => return self.handle_error(ErrorMessage::MissingRightParenthesis)
-          }
-      }
-      fn parse_node_condition(&mut self) -> Result<(), ErrorMessage>{
-          // <条件表达式> → <算术表达式><关系运算符><算术表达式>
-          match self.parse_node_expression() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.parse_node_relational_operator() {
-              Ok(_) => self.advance(),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.parse_node_expression() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          Ok(())
-      }
-      fn parse_node_expression(&mut self) -> Result<(), ErrorMessage>{
-          // <算术表达式> → <项> <算术表达式'>
-          match self.parse_node_term() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.parse_node_expression_prime() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          Ok(())
-      }
-      fn parse_node_expression_prime(&mut self) -> Result<(), ErrorMessage>{
-          // <算术表达式'> → -<项> <算术表达式'> | ε
-          if self.match_token(Token::Minus) {
-              self.advance();
-              match self.parse_node_term() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              match self.parse_node_expression_prime() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              Ok(())
-          }else { 
-              Ok(())
-          }
-      }
-      fn parse_node_term(&mut self) -> Result<(), ErrorMessage>{
-          // <项> → <因子> <项'>
-          match self.parse_node_factor() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.parse_node_term_prime() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          Ok(())
-      }
-      fn parse_node_term_prime(&mut self) -> Result<(), ErrorMessage>{
-          // <项'> → *<因子> <项'> | ε
-          if self.match_token(Token::Multiply) {
-              self.advance();
-              match self.parse_node_factor() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              match self.parse_node_term_prime() {
-                  Ok(_) => (),
-                  Err(e) => return self.handle_error(e),
-              }
-              Ok(())
-          }else {
-              Ok(())
-          }
-      }
-      fn parse_node_factor(&mut self) -> Result<(), ErrorMessage>{
-          // <因子> → <标识符> <因子后缀> | <常数> | (<算术表达式>)
-          match self.current_token() {
-              Token::LeftParenthesis => {
-                  self.advance();
-                  match self.parse_node_expression() {
-                      Ok(_) => (),
-                      Err(e) => return self.handle_error(e),
-                  }
-                  match self.match_token(Token::RightParenthesis) {
-                      true => {
-                          self.advance();
-                          Ok(())
-                      },
-                      false => self.handle_error(ErrorMessage::MissingRightParenthesis)
-                  }
-              },
-              Token::IntegerLiteral(_) => self.parse_node_constant(),
-              Token::Identifier(_) => {
-                  match self.parse_node_identifier() {
-                      Ok(_) => (),
-                      Err(e) => return self.handle_error(e),
-                  }
-                  match self.parse_node_factor_suffix() {
-                      Ok(_) => (),
-                      Err(e) => return self.handle_error(e),
-                  }
-                  Ok(())
-              },
-              _ => self.handle_error(ErrorMessage::SyntaxError)
-          }
-      }
-      fn parse_node_factor_suffix(&mut self) -> Result<(), ErrorMessage>{
-          // <因子后缀> → (<参数>)| ε
-          match self.match_token(Token::LeftParenthesis) {
-              true => self.advance(),
-              false => return Ok(()),
-          }
-          match self.parse_node_parameter() {
-              Ok(_) => (),
-              Err(e) => return self.handle_error(e),
-          }
-          match self.match_token(Token::RightParenthesis) {
-              true => self.advance(),
-              false => return self.handle_error(ErrorMessage::MissingRightParenthesis)
-          }
-          Ok(())
-      }
-      fn parse_node_relational_operator(&mut self) -> Result<(), ErrorMessage>{
-          // <关系运算符> → <│<=│>│>=│=│<>
-          match self.current_token() {
-              Token::Equal => Ok(()),
-              Token::NotEqual => Ok(()),
-              Token::Less => Ok(()),
-              Token::LessEqual => Ok(()),
-              Token::Greater => Ok(()),
-              Token::GreaterEqual => Ok(()),
-              _ => self.handle_error(ErrorMessage::SyntaxError)
-          }
-      }
-      fn parse_node_variable(&mut self) -> Result<String, ErrorMessage>{
-          // <变量> → <标识符>
-          match self.parse_node_identifier() {
-              Ok(name) => Ok(name),
-              Err(e) => return Err(e),
-          }
-      }
-      fn parse_node_constant(&mut self) -> Result<(), ErrorMessage>{
-          // <常量> → <整数>
-          match self.current_token() {
-              Token::IntegerLiteral(_) => {
-                  self.advance();
-                  Ok(())
-              },
-              _ => self.handle_error(ErrorMessage::InvalidNumber)
-          }
-      }
-      fn parse_node_identifier(&mut self) -> Result<String, ErrorMessage>{
-          // <标识符>
-          match self.current_token() {
-              Token::Identifier(name) => {
-                  self.advance();
-                  Ok(name.clone())
-              },
-              _ => Err(ErrorMessage::ExpectedIdentifier),
-          }
-      }
-  }
-\end{lstlisting}
-
-\begin{lstlisting}[caption={符号表控制器env.rs}, label={5:code-example}, captionpos=t, language=rust]
-  use std::collections::HashMap;
-
-  #[derive(Clone, PartialEq, Debug)]
-  pub enum Token {
-      // 所有的记号
-      // 标识符
-      Identifier(String),
-      
-      // 字面量
-      IntegerLiteral(i64),
-  
-      // 算术运算符
-      Minus,
-      Multiply,
-      Assign,
-  
-      // 关系运算符
-      Equal,
-      NotEqual,
-      Less,
-      LessEqual,
-      Greater,
-      GreaterEqual,
-  
-      // 分界符
-      Begin,
-      End,
-      LeftParenthesis,
-      RightParenthesis,
-      Semicolon,
-  
-      // 行末提示符
-      Eol,
-  
-      // 文件末提示符
-      Eof,
-  
-      // 关键字
-      Integer,
-      Function,
-      If,
-      Then,
-      Else,
-      Read,
-      Write,
-  
-      // 非法字符
-      Illegal(char),
-  }
-  
-  #[derive(Clone)]
-  pub enum ErrorMessage {
-      // 所有的报错信息
-      SyntaxError,// 语法错误
-      WrongReserveYouMeanFunction, // wrong reserve: you mean 'function'?
-      WrongReserveYouMeanRead, // wrong reserve: you mean 'read'?
-      WrongReserveYouMeanWrite, // wrong reserve: you mean 'write'?
-      WrongAssignToken, // wrong assign operator: you mean ':='?
-      InvalidTypeExpectedInterger, // 非法的类型，expected integer
-      InvalidNumber, // 非法数字串
-      OverflowIdentifier,// 标识符长度溢出
-      FailMatchingSemicolon, // 冒号不匹配
-      MissingSemicolon, // 缺一个分号,
-      MissingLeftParenthesis, // expected '(' following the function statement
-      MissingRightParenthesis, // expected ')' to cover the block
-      MissingIf, // expected 'if' 
-      MissingThen, // expected 'then' 
-      MissingElse, // expected 'else'
-      MissingMultiply, // expected 'multiply'
-      SyntaxErrorExpectedABlock, // expected a block
-      FailMatching, // 符号匹配错误
-      MissingEnd, // begin没有匹配的end
-      ExpectedIdentifier, // 符号无声明
-      FoundRepeatDeclarationInThisField, //符号重复声明
-  }
-  
-  #[derive(Clone)]
-  pub struct VariableItem {
-      // 变量表项
-      pub vname: String, // 变量名
-      pub vproc: String, // 所属过程
-      pub vkind: i32, // 0-变量，1-形参
-      pub vlev: i32, // 变量所在层次
-      // pub vadr: i32, // 相对于第一个变量在变量表中的位置
-      pub vtype: Vec<i32>, // 变量类型 
-  }
-  impl VariableItem {
-      pub fn new(vname: String, vproc: String, vkind: i32, vlev: i32)-> Self{
-          let v = VariableItem {
-              vname: vname,
-              vproc: vproc,
-              vkind: vkind,
-              vlev: vlev,
-              vtype: Vec::new(),
-          };
-          v
-      }
-  }
-  
-  #[derive(Clone)]
-  pub struct ProcedureItem {
-      // 过程表项
-      pub pname: String, // 过程名
-      pub ptype: Vec<i32>, //过程类型
-      pub plev: i32, // 过程所在层次
-      // pub fadr: i32, // 第一个变量在变量表里的位置
-      // pub ladr: i32, // 最后一个变量在变量表中的位置
-  }
-  impl ProcedureItem {
-      pub fn new(pname: String, plev: i32) -> Self {
-          let p = ProcedureItem {
-              pname: pname, 
-              ptype: Vec::new(),
-              plev: plev
-          };
-          p
-      }
-  }
-  
-  #[derive(Clone)]
-  pub struct SymbolTable {
-      // 符号表,每个作用域都应该对应一个符号表
-      pub variables: HashMap<String, VariableItem>, // 变量表
-      pub procedures: HashMap<String, ProcedureItem>, // 过程表
-      pub level: i32, // 当前作用域层级
-  }
-  impl SymbolTable {
-      pub fn new(level: i32) -> Self {
-          let st = SymbolTable {
-              variables: HashMap::new(),
-              procedures: HashMap::new(),
-              level: level,
-          };
-          st
-      }
-      pub fn get_level(&self) -> i32{
-          self.level
-      }
-  }
-  
-  #[derive(Clone)]
-  pub struct Env {
-      // 符号表栈，管理顶层符号表随作用域变化
-      pub stack: Vec<SymbolTable>,
-  }
-  impl Env {
-      pub fn new() -> Self {
-          let e = Env {
-              stack: Vec::new(),
-          };
-          e
-      }
-      pub fn enter_scope(&mut self){
-          // 进入作用域，移入一个空符号表
-          let t = SymbolTable::new(self.stack.len() as i32);
-          self.stack.push(t);
-      }
-      pub fn exit_scope(&mut self){
-          // 退出作用域，移出栈顶符号表
-          self.stack.pop();
-      }
-      pub fn add_variable(&mut self, vname: String, vproc: String, vkind: i32){
-          // 声明一个变量
-          let t: &mut SymbolTable = self.stack.last_mut().unwrap();
-          let item = VariableItem::new(vname.clone(), vproc, vkind, t.get_level());
-          t.variables.insert(vname, item);
-      }
-      pub fn delete_cariable(&mut self, vname: String){
-          // 析构一个变量
-          let t: &mut SymbolTable = self.stack.last_mut().unwrap();
-          t.variables.remove_entry(&vname);
-      }
-      pub fn add_procedure(&mut self, pname: String) {
-          // 声明一个过程
-          let t: &mut SymbolTable = self.stack.last_mut().unwrap();
-          let item = ProcedureItem::new(pname.clone(), t.get_level());
-          t.procedures.insert(pname, item);
-      }
-      pub fn delete_procedure(&mut self, pname: String) {
-          // 析构一个过程
-          let t: &mut SymbolTable = self.stack.last_mut().unwrap();
-          t.procedures.remove_entry(&pname);
-      }
-      pub fn find_symbol(&self, name: String) -> bool{
-          // 自顶向下查找一个符号
-          for s in self.stack.iter().rev() {
-              if s.variables.get(&name).is_some()||s.procedures.get(&name).is_some() {
-                  return true;
-              }
-          }
-          false
-      }
-      pub fn check_repeat(&self, name: String) -> bool {
-          // 检查当前作用域是否重复声明某符号
-          let t = self.stack.last().unwrap(); 
-          t.variables.contains_key(&name) || t.procedures.contains_key(&name)
-      }
-      pub fn save(&self){
-          // 保存在.var文件
-      }
-  }
+      return low_frequencies, high_frequencies, hybrid_image
+    
+    def vis_hybrid_image(hybrid_image):
+      """
+      Visualize a hybrid image by progressively downsampling the image and
+      concatenating all of the images together.
+      """
+      scales = 5
+      scale_factor = [0.5, 0.5, 1]
+      padding = 5
+      original_height = hybrid_image.shape[0]
+      num_colors = 1 if hybrid_image.ndim == 2 else 3
+    
+      output = np.copy(hybrid_image)
+      cur_image = np.copy(hybrid_image)
+      for scale in range(2, scales+1):
+        # add padding
+        output = np.hstack((output, np.ones((original_height, padding, num_colors),
+                                            dtype=np.float32)))
+        # downsample image
+        cur_image = rescale(cur_image, scale_factor, mode='reflect')
+        # pad the top to append to the output
+        pad = np.ones((original_height-cur_image.shape[0], cur_image.shape[1],
+                       num_colors), dtype=np.float32)
+        tmp = np.vstack((pad, cur_image))
+        output = np.hstack((output, tmp))
+      return output
+    
+    def load_image(path):
+      return img_as_float32(io.imread(path))
+    
+    def save_image(path, im):
+      return io.imsave(path, img_as_ubyte(im.copy()))
+    
 \end{lstlisting}
